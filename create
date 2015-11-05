@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+
+[[ "$TRACE" ]] && set -x
+set -eo pipefail
+
+vars() {
+	export SKYDNS_PATH="${SKYDNS_PATH:-/skydns}"
+	export SKYDNS_CONFIG_PATH="${SKYDNS_CONFIG_PATH:-$SKYDNS_PATH/config}"
+}
+
+container_long_id() {
+	local id="$1"
+	shift
+	docker inspect --format '{{ .Id }}' "$id"
+}
+
+get_skydns_domain() {
+	etcdctl get "$SKYDNS_CONFIG_PATH" \
+	| jq '.domain' \
+	| xargs
+}
+
+path_from_fqdn() {
+	local fqdn="$1"
+	shift
+	printf "$fqdn" \
+	| rev \
+	| tr '.' '\n' \
+	| rev \
+	| tr '\n' '/'
+}
+
+container_address() {
+	local container_id="$1"
+	docker inspect --format '{{ .NetworkSettings.IPAddress }}' $container_id
+}
+
+skydns_data() { 
+	local container_id="$1"
+	printf "{\"host\":\"$(container_address "$container_id")\"}"
+}
+
+main() {
+	vars
+	local container_id="$1"
+	container_id="$(container_long_id "$container_id")"
+	shift
+	local hostname="$(docker inspect --format '{{ .Config.Hostname }}' $container_id)"
+	local domainname="$(docker inspect --format '{{ .Config.Domainname }}' $container_id)"
+	local domainname="${domainname:-$(get_skydns_domain)}"
+	local fqdn="$container_id.$hostname.$domainname"
+	local fqdn_path="$SKYDNS_PATH/$(path_from_fqdn "$fqdn")"
+	etcdctl set "$fqdn_path" "$(skydns_data "$container_id")"
+}
+
+main $@
+exit $?

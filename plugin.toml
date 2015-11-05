@@ -1,0 +1,11 @@
+[plugin]
+name = "skydns"
+description = "Insert Data into ETCD for skydns"
+version = "0.0.1"
+maintainer_name = "Mathias Kaufmann"
+maintainer_email = "me@stei.gr"
+website_url = "http://github.com/steigr/plugn-skydns"
+
+[plugin.config]
+
+[plugin.compatibility]

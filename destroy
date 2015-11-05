@@ -1,0 +1,32 @@
+#!/usr/bin/env bash
+
+[[ "$TRACE" ]] && set -x
+set -eo pipefail
+
+vars() {
+	export SKYDNS_PATH="${SKYDNS_PATH:-/skydns}"
+	export SKYDNS_CONFIG_PATH="${SKYDNS_CONFIG_PATH:-$SKYDNS_PATH/config}"
+}
+
+cleanup() {
+	local path="$1"
+	shift
+	[[ "$(etcdctl ls "$path")" ]] && return 0
+	etcdctl rmdir "$path"
+	cleanup "$(dirname "$path")"
+}
+
+main() {
+	vars
+	local container_id="$1"
+	shift
+	etcdctl ls --recursive "$SKYDNS_PATH" \
+	| grep "$container_id" \
+	| while read path; do
+		etcdctl rm --recursive "$path"
+		cleanup "$(dirname "$path")";
+	done
+}
+
+main $@
+exit $?
